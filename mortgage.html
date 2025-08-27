@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-Hant">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>按揭計算器</title>
+        <style>
+            :root {
+                --bg: #f8fafc;
+                --card: #fff;
+                --fg: #0f172a;
+                --muted: #6b7280;
+                --accent: #2563eb
+            }
+
+            * {
+                box-sizing: border-box;
+                outline: none;
+                padding: 0px;
+                margin: 0px;
+                word-wrap: break-word;
+                -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+                -webkit-text-size-adjust: 100%;
+            }
+
+            body {
+                font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+                margin: 0;
+                padding: 20px;
+                background: var(--bg);
+                color: var(--fg)
+            }
+
+            .container {
+                /*max-width: 1200px;*/
+                margin: 0 auto
+            }
+
+            h1 {
+                margin: 0 0 12px
+            }
+
+            .grid {
+                display: flex;
+                gap: 20px;
+                flex-wrap: wrap;
+            }
+
+            .card {
+                background: var(--card);
+                padding: 14px;
+                border-radius: 12px;
+                box-shadow: 0 6px 18px rgba(2, 6, 23, 0.06)
+            }
+            
+            .grid > div {
+                width: calc(50% - 10px);
+            }
+
+            label {
+                display: block;
+                font-size: 13px;
+                color: var(--muted);
+                margin-bottom: 6px
+            }
+
+            input,
+            select {
+                width: 100%;
+                padding: 10px;
+                border-radius: 10px;
+                border: 1px solid #e6edf3;
+                font-size: 16px
+            }
+
+            button {
+                background: var(--accent);
+                color: #fff;
+                border: 0;
+                padding: 10px 14px;
+                border-radius: 10px;
+                cursor: pointer
+            }
+
+            .row {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 8px
+            }
+            
+            thead th {
+                position: sticky;  
+                background: var(--accent);
+                top: 0;
+                color: #fff;
+                z-index: 1;
+            }
+
+            th,
+            td {
+                padding: 8px;
+                border: 1px solid #f1f5f9;
+                text-align: left;
+                font-size: 13px;
+                cursor: pointer;
+            }
+            
+            tbody tr:hover {
+                background: wheat;
+                font-weight: bold;
+            }
+
+            .muted {
+                color: var(--muted);
+                font-size: 13px
+            }
+
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                gap: 10px;
+                margin-top: 10px
+            }
+
+            .stat {
+                background: #f1f5f9;
+                padding: 10px;
+                border-radius: 10px;
+                text-align: center
+            }
+
+            .mono {
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace
+            }
+
+            .actions {
+                display: flex;
+                gap: 8px;
+                align-items: center
+            }
+
+            .small {
+                font-size: 13px
+            }
+
+            @media (max-width:520px) {
+
+                th,
+                td {
+                    font-size: 12px
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>按揭計算器</h1>
+            <div class="card grid">
+                <div><label>貸款額（Principal）</label><input id="amount" type="number" step="0.01" value="2000000"></div>
+                <div><label>年利率（Annual %）</label><input id="rate" type="number" step="0.0001" value="3.5"></div>
+                <div><label>年期（Years）</label><input id="years" type="number" step="1" value="30"></div>
+                <div><label>起始還款日（可選）</label><input id="start" type="date"></div>
+                <div><label>每月額外還款（Extra per month，可選）</label><input id="extra" type="number" step="0.01" value="0"></div>
+                <div><label>高息戶口存款（Offset balance）</label><input id="offsetBalance" type="number" step="0.01" value="1000000"></div>
+                <div><label>抵銷上限（% of outstanding principal，可輸入 0-100）</label><input id="offsetCapPct" type="number" step="0.1" value="50"></div>
+                <div class="row" style="align-items:end"><button id="calcBtn">開始計算（等額本息 Amortized monthly）</button></div>
+            </div>
+            <div id="result" style="display:none">
+                <div class="card" style="margin-top:12px">
+                    <h2 style="margin:0 0 8px">摘要</h2>
+                    <div class="stats">
+                        <div class="stat">
+                            <div class="muted">標準月供（不含額外還款）</div>
+                            <div id="stdPayment" class="mono" style="font-weight:700">HKD 0.00</div>
+                        </div>
+                        <div class="stat">
+                            <div class="muted">實際總月數</div>
+                            <div id="months" class="mono" style="font-weight:700">0</div>
+                        </div>
+                        <div class="stat">
+                            <div class="muted">總利息</div>
+                            <div id="totalInterest" class="mono" style="font-weight:700">HKD 0.00</div>
+                        </div>
+                        <div class="stat">
+                            <div class="muted">總支付（本金+利息）</div>
+                            <div id="totalPayment" class="mono" style="font-weight:700">HKD 0.00</div>
+                        </div>
+                        
+                        <div class="stat">
+                            <div class="muted">高息戶口總利息</div>
+                            <div id="totalOffset" class="mono" style="font-weight:700">HKD 0.00</div>
+                        </div>
+                        
+                        <div class="stat">
+                            <div class="muted">實際總支付（本金+利息-高息戶口利息）</div>
+                            <div id="totalPaymentOffset" class="mono" style="font-weight:700">HKD 0.00</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top:12px">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <h2 style="margin:0">攤還表</h2>
+                        <div class="actions"><button id="downloadCsv">下載 CSV</button><button id="copyTable">複製表格</button></div>
+                    </div>
+                    <div style="max-height:520px;overflow:auto;border:1px solid #eef2f9;border-radius:8px;padding:6px;margin-top: 20px;">
+                        <table id="scheduleTable">
+                            <thead>
+                                <tr>
+                                    <th>期數</th>
+                                    <th>日期</th>
+                                    <th>每期還款</th>
+                                    <th>利息</th>
+                                    <th>本金</th>
+                                    <th>剩餘本金</th>
+                                    
+                                    <th>高息戶口可抵金額</th>
+                                    <th>高息戶口可抵利息</th>
+                                    <th>實際每月支出</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top:14px" class="muted small"> 公式提示：月供 PMT = P * r*(1+r)^n / ((1+r)^n - 1)，若年利率 = 0 則月供 = P/n。 </div>
+        </div>
+        <script>
+            (function() {
+                // 設定起始還款日預設為今天
+                (function setDefaultStartDate() {
+                    const today = new Date();
+                    const yyyy = today.getFullYear();
+                    const mm = String(today.getMonth() + 1).padStart(2, '0');
+                    const dd = String(today.getDate()).padStart(2, '0');
+                    document.getElementById('start').value = `${yyyy}-${mm}-${dd}`;
+                })();
+                // 工具
+                const $ = id => document.getElementById(id);
+                const fmt = n => Number(n).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+
+                function monthlyPayment(P, annualPct, years) {
+                    const n = Math.round(years * 12);
+                    if (n <= 0) return 0;
+                    const r = annualPct / 100 / 12;
+                    if (Math.abs(r) < 1e-12) return P / n;
+                    const x = Math.pow(1 + r, n);
+                    return P * r * x / (x - 1);
+                }
+
+                function buildSchedule(P, annualPct, years, extraMonthly, startDateStr, offsetBalance=0, offsetCapPct=0) {
+                    const paymentStd = monthlyPayment(P, annualPct, years);
+                    const r = annualPct / 100 / 12;
+                    let balance = P;
+                    let period = 0;
+                    let totalInterest = 0;
+                    let totalPayment = 0;
+                    let cumulativeOffset=0;
+                    const rows = [];
+                    let date = null;
+                    if (startDateStr) {
+                        const d = new Date(startDateStr);
+                        if (!isNaN(d)) date = d;
+                    }
+                    const maxLoops = Math.max(1, Math.round(years * 12) + 2400); // safety
+                    while (balance > 1e-8 && period < maxLoops) {
+                        // 本月可抵銷額
+                        const avgOffset = Math.max(0,Number(offsetBalance));
+                        const cap = Math.max(0,Math.min(100,Number(offsetCapPct)))/100;
+                        let monthlyOffset = offsetBalance>0?Math.min(avgOffset, balance*cap, balance):0;
+                        cumulativeOffset += parseFloat(monthlyOffset * r);
+ 
+                        period++;
+                        const interest = (Math.abs(r) < 1e-12) ? 0 : balance * r;
+                        let principalPay = paymentStd - interest;
+                        if (principalPay < 0) principalPay = 0;
+                        let totalThis = paymentStd + Math.max(0, extraMonthly);
+                        // 如果當期還款能夠清零，調整為精確還清
+                        if (totalThis >= balance + interest) {
+                            totalThis = balance + interest;
+                            principalPay = totalThis - interest;
+                        } else {
+                            principalPay += Math.max(0, extraMonthly);
+                        }
+                        balance = Math.max(0, balance - principalPay);
+                        totalInterest += interest;
+                        totalPayment += totalThis;
+                        const rowDate = date ? new Date(date.getTime()) : null;
+                        if (date) date.setMonth(date.getMonth() + 1); 
+              
+                        rows.push({
+                            period,
+                            date: rowDate ? rowDate.toISOString().slice(0, 10) : '-',
+                            payment: totalThis,
+                            interest,
+                            principal: principalPay,
+                            balance,
+                            monthlyOffset,
+                            monthlyOffsetAdjusted: parseFloat(monthlyOffset * r)
+                        });
+                    }
+                    return {
+                        rows,
+                        months: period,
+                        totalInterest,
+                        totalPayment,
+                        stdPayment: paymentStd,
+                        cumulativeOffset
+                    };
+                }
+
+                function renderResult(res) {
+                    $('result').style.display = '';
+                    $('stdPayment').textContent = 'HKD ' + fmt(res.stdPayment);
+                    $('months').textContent = `${res.months}（約 ${(res.months/12).toFixed(2)} 年）`;
+                    $('totalInterest').textContent = 'HKD ' + fmt(res.totalInterest);
+                    $('totalPayment').textContent = 'HKD ' + fmt(res.totalPayment);
+                    $('totalOffset').textContent = 'HKD ' + fmt(res.cumulativeOffset);
+                    $('totalPaymentOffset').textContent = 'HKD ' + fmt(res.totalPayment - res.cumulativeOffset);
+                    const tbody = document.querySelector('#scheduleTable tbody');
+                    tbody.innerHTML = '';
+                    for (const r of res.rows) {
+                        const tr = document.createElement('tr');
+                        const yearNum = Math.floor((r.period-1)/12) + 1;
+                        const monthNum = ((r.period-1)%12) + 1;
+                        const periodLabel = `第${yearNum}年${monthNum}月`;
+                        
+                        tr.innerHTML = `<td>${r.period} (${periodLabel})</td><td>${r.date}</td><td>HKD ${fmt(r.payment)}</td><td>HKD ${fmt(r.interest)}</td><td>HKD ${fmt(r.principal)}</td><td>HKD ${fmt(r.balance)}</td><td>HKD ${fmt(r.monthlyOffset)}</td><td>HKD ${fmt(r.monthlyOffsetAdjusted)}</td><td>HKD ${fmt(r.payment - r.monthlyOffsetAdjusted)}</td>`;
+                        tbody.appendChild(tr);
+                    }
+                }
+         
+                // 下載 CSV
+                function toCsv(res) {
+                    const header = ['期數', '日期', '每期還款', '利息', '本金', '剩餘本金', '高息戶口可抵金額', '高息戶口可抵利息', '實際每月支出'];
+                    const lines = [header.join(',')];
+                    for (const r of res.rows) {
+                        lines.push([
+                            r.period,
+                            r.date,
+                            r.payment.toFixed(2),
+                            r.interest.toFixed(2),
+                            r.principal.toFixed(2),
+                            r.balance.toFixed(2),
+                            
+                            r.monthlyOffset.toFixed(2),
+                            r.monthlyOffsetAdjusted.toFixed(2),
+                            (r.payment - r.monthlyOffsetAdjusted).toFixed(2)
+                        ].join(','));
+                    }
+                    return lines.join('\n');
+                }
+                // 複製表格到剪貼簿（純文字）
+                function tableText(res) {
+                    const lines = [
+                        ['期數', '日期', '每期還款', '利息', '本金', '剩餘本金', '高息戶口可抵金額', '高息戶口可抵利息', '實際每月支出']
+                    ];
+                    for (const r of res.rows) {
+                        lines.push([r.period, r.date, r.payment.toFixed(2), r.interest.toFixed(2), r.principal.toFixed(2), r.balance.toFixed(2), r.monthlyOffset.toFixed(2), r.monthlyOffsetAdjusted.toFixed(2), (r.payment - r.monthlyOffsetAdjusted).toFixed(2)]);
+                    }
+                    return lines.map(row => row.join('\t')).join('\n');
+                }
+                // 事件
+                let lastResult = null;
+                $('calcBtn').addEventListener('click', function() {
+                    const P = parseFloat($('amount').value) || 0;
+                    const rate = parseFloat($('rate').value) || 0;
+                    const years = parseFloat($('years').value) || 0;
+                    const extra = parseFloat($('extra').value) || 0;
+                    const start = $('start').value || '';
+                    const offsetBalance = parseFloat($('offsetBalance').value) || 0;
+                    const offsetCapPct = parseFloat($('offsetCapPct').value) || 0;
+                    if(P<=0||years<=0||rate<0||offsetCapPct<0||offsetCapPct>100){
+                        alert('請輸入正確的貸款額、年期、利率及抵銷上限(0-100)');
+                        return;
+                    }
+                    const res = buildSchedule(P, rate, years, extra, start, offsetBalance, offsetCapPct);
+                    lastResult = res;
+                    renderResult(res);
+                    // scroll to result
+                    setTimeout(() => {
+                        window.scrollTo({
+                            top: document.getElementById('result').offsetTop - 10,
+                            behavior: 'smooth'
+                        });
+                    }, 80);
+                });
+                $('downloadCsv').addEventListener('click', function() {
+                    if (!lastResult) {
+                        alert('請先計算');
+                        return;
+                    }
+                    const csv = toCsv(lastResult);
+                    const blob = new Blob([csv], {
+                        type: 'text/csv;charset=utf-8;'
+                    });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'amortization_schedule.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                });
+                $('copyTable').addEventListener('click', function() {
+                    if (!lastResult) {
+                        alert('請先計算');
+                        return;
+                    }
+                    const txt = tableText(lastResult);
+                    navigator.clipboard.writeText(txt).then(() => {
+                        alert('已複製表格（制表符分隔），可貼到 Excel/Sheets）。');
+                    }, () => {
+                        alert('複製失敗，請手動選取與複製表格。');
+                    });
+                });
+            })();
+        </script>
+    </body>
+</html>
